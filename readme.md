@@ -61,4 +61,4 @@ Notas
 *   Es posible que debas ajustar algunos valores en el script según tus necesidades específicas.
 *   Antes de ejecutar el script en un entorno de producción, te recomendamos que lo entiendas completamente y hagas pruebas en un entorno de desarrollo o de prueba.
 
-Recuerda que este script solo proporciona una guía básica de cómo funciona el proceso de configuración e instalación de MinIO. Pueden existir cambios o actualizaciones en las versiones futuras de MinIO o en los sistemas operativos que no estén reflejados aquí.
+Recuerda que este script solo proporciona una guía básica de cómo funciona el proceso de configuración e instalación de MinIO. Pueden existir cambios o actualizaciones en las versiones futuras de MinIO o en los sistemas operativos que no estén reflejados aquí. 
