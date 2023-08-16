@@ -1,0 +1,175 @@
+#!/bin/bash
+
+# Función para imprimir mensajes con formato
+print_msg() {
+  echo -e "\e[1m$1\e[0m"
+}
+
+# Función para leer y validar las variables de entorno
+read_variable() {
+  while true; do
+    read -p "$1: " input_variable
+    if [[ -n "$input_variable" ]]; then
+      export "$2"="$input_variable"
+      break
+    fi
+    print_msg "\e[33m¡Debes ingresar un valor!\e[0m"
+  done
+}
+
+# Comprobar si el script se está ejecutando como root
+if [[ $EUID -ne 0 ]]; then
+   print_msg "\e[31mEste script debe ejecutarse como superusuario(root).\e[0m"
+   exit 1
+fi
+
+# Preguntar por las variables
+print_msg "\e[34mConfiguración de MinIO\e[0m"
+read_variable "Usuario admin minio" "USR_ADMIN"
+read_variable "Contraseña para usuario admin minio (minioadmin)" "USR_ADMIN_PASS"
+read_variable "Dominio de instalación: (Ejemplo: test.ejmplo.com.ar, ejemplo.com)" "DOMAIN_COM"
+read_variable "La carpeta de datos de MinIO (ejemplo: minio)" "MINIO_DATA_PATH"
+
+# Convertir la variable a minúsculas usando tr
+DOMAIN=$(echo "$DOMAIN_COM" | tr '[:upper:]' '[:lower:]')
+
+# Definir la ruta base para los montajes y variables del ENV
+BASE_PATH="/mnt/disk"
+SUB_DOMAIN="minio"
+
+# Definir una matriz de números de disco
+DISK=(1 2 3 4)
+UNIT=("b" "c" "d" "e")
+
+# Paso 0: Crear usuario minio
+groupadd -r minio-user
+useradd -M -r -g minio-user minio-user -s /sbin/nologin
+
+# Definir una matriz para los volúmenes
+declare -a VOLUMES
+
+# Paso 1: Montar las unidades xfs
+print_msg "\e[34mCreando carpeta de instalación y montando discos...\e[0m"
+
+# Bucle for para crear directorios, montar dispositivos y crear volúmenes
+for ((i=0; i<${#DISK[@]}; i++)); do
+  disco="${DISK[i]}"
+  unidad="${UNIT[i]}"
+  LOCAL_DISK="${BASE_PATH}${disco}/${MINIO_DATA_PATH}"
+  SITE="http://${SUB_DOMAIN}${disco}.${DOMAIN}:9000"
+  VOLUME="${SITE}${LOCAL_DISK}"
+  VOLUMES[$i]="$VOLUME"
+
+  # Crear directorio si no existe
+  mkdir -p "$LOCAL_DISK"
+
+  # Montar el dispositivo en el directorio creado
+  mount "/dev/sd${unidad}" "$LOCAL_DISK"
+done
+
+# Paso 3: Instalar MinIO
+print_msg "\e[34mInstalando MinIO desde el archivo RPM local...\e[0m"
+sudo yum install -y ./minio/minio.rpm
+sudo chmod +x /usr/local/bin/minio
+
+# Crear archivo de entorno
+print_msg "Creando archivo de entorno..."
+cat << EOF > "/etc/default/minio"
+
+# Set the hosts and volumes MinIO uses at startup
+# The command uses MinIO expansion notation {x...y} to denote a
+# sequential series.
+#
+# The following example covers four MinIO hosts
+# with 4 drives each at the specified hostname and drive locations.
+# The command includes the port that each MinIO server listens on
+# (default 9000)
+
+MINIO_VOLUMES="${VOLUMES[*]}"
+
+# Set all MinIO server options
+#
+# The following explicitly sets the MinIO Console listen address to
+# port 9001 on all network interfaces. The default behavior is dynamic
+# port selection.
+
+MINIO_OPTS="--console-address :9001"
+
+# Set the root username. This user has unrestricted permissions to
+# perform S3 and administrative API operations on any resource in the
+# deployment.
+#
+# Defer to your organizations requirements for superadmin user name.
+
+MINIO_ROOT_USER=$USR_ADMIN
+
+# Set the root password
+#
+# Use a long, random, unique string that meets your organizations
+# requirements for passwords.
+
+MINIO_ROOT_PASSWORD=$USR_ADMIN_PASS
+
+# Set to the URL of the load balancer for the MinIO deployment
+# This value *must* match across all MinIO servers. If you do
+# not have a load balancer, set this value to to any *one* of the
+# MinIO hosts in the deployment as a temporary measure.
+
+MINIO_SERVER_URL="https://$SUB_DOMAIN.$DOMAIN:9000"
+
+EOF
+
+CONFIG_1='$MINIO_OPTS'
+CONFIG_2='$MINIO_VOLUMES'
+
+print_msg "\e[34mCreando archivo de servicio systemd...\e[0m"
+cat <<EOF > /etc/systemd/system/minio.service
+[Unit]
+Description=MinIO
+Documentation=https://min.io/docs/minio/linux/index.html
+Wants=network-online.target
+After=network-online.target
+AssertFileIsExecutable=/usr/local/bin/minio
+
+[Service]
+WorkingDirectory=/usr/local
+
+User=minio-user
+Group=minio-user
+ProtectProc=invisible
+
+EnvironmentFile=-/etc/default/minio
+ExecStart=/usr/local/bin/minio server $CONFIG_1 $CONFIG_2 
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=minio
+Restart=on-failure
+LimitNOFILE=65536
+TasksMax=infinity
+TimeoutStopSec=infinity
+SendSIGKILL=no 
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Paso 4: Habilitar y arrancar el servicio MinIO
+
+print_msg "\e[34mHabilitando y arrancando el servicio MinIO...\e[0m"
+systemctl enable minio
+
+# Iniciar el servicio MinIO
+sudo systemctl start minio
+
+# Esperar 5 segundos
+sleep 5
+
+# Verificar el estado del servicio
+if sudo systemctl is-active --quiet minio; then
+    print_msg  "\e[32mEl servicio de MinIO está activo.\e[0m"
+    print_msg "\e[32m¡Instalación y configuración de MinIO completada exitosamente!\e[0m"
+else
+    print_msg  "\e[31mNo se pudo activar el servicio de MinIO.\e[0m"
+    print_msg "\e[31mLa instalación y configuración de MinIO no fue completada, revise con sudo systemctl status minio para verificar los errores\e[0m"
+fi
