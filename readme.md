@@ -1,7 +1,7 @@
 Configuración e Instalación de MinIO
 ====================================
 
-Este script de shell está diseñado para configurar e instalar el servidor de almacenamiento MinIO en un sistema Linux. MinIO es un sistema de almacenamiento de objetos de alto rendimiento, compatible con Amazon S3. El script realiza los siguientes pasos:
+Este script de shell está diseñado para configurar e instalar el servidor de almacenamiento MinIO Multi Nodo en un sistema Linux RHEL. MinIO es un sistema de almacenamiento de objetos de alto rendimiento, compatible con Amazon S3. El script realiza los siguientes pasos:
 
 Requisitos
 ----------
@@ -16,9 +16,10 @@ Instrucciones
     
     Ejecuta el script con privilegios de superusuario:
     
-    bashCopy code
-    
-    `sudo ./nombre_del_script.sh`
+    ```bash
+    chmod +x ./install
+    sudo ./install
+    ```
     
 2.  **Configuración de MinIO**
     
