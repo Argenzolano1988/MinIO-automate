@@ -8,9 +8,9 @@ Requisitos
 
 *   Se debe ejecutar este script como superusuario (root).
 *   Clona el repositorio dentro de home: 
-```bash
-git clone https://github.com/Argenzolano1988/MinIO-automate.git
-```
+    ```bash
+    git clone https://github.com/Argenzolano1988/MinIO-automate.git
+    ```
 *   Necesario tener los discos XFS para que lo tome correctamente, que sean 4 y consecutivo los mismos (ejemplo: disk1, disk2, disk3...)
 *   Tener cargados los DNS en los 4 server a instalar (minio1.redlink.com.ar, minio2.redlink.com.ar, minio3...). [Link de documentación](https://min.io/docs/minio/linux/operations/install-deploy-manage/deploy-minio-multi-node-multi-drive.html)
 
